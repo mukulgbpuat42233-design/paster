@@ -1,0 +1,6 @@
+{
+  "name": "NRPC Weekly Inputs Generator",
+  "description": "Generate verified weekly NRPC Excel inputs from raw workbooks using ExcelJS",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
