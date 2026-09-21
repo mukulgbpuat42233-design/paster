@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>THDCIL NRPC DSM – Exact Template Plantwise Generator</title>
+<title>THDCIL NRPC DSM – Uniform Weekwise 3-Plant Generator</title>
 <style>
 *{box-sizing:border-box} body{margin:0;font-family:Segoe UI,Arial,sans-serif;background:#eef3f8;color:#17324d}
 .header{background:linear-gradient(135deg,#073b66,#0b6fa4);color:#fff;padding:18px 26px;display:flex;align-items:center;gap:16px}
@@ -31,7 +31,8 @@ table{width:100%;border-collapse:collapse;font-size:12px} th,td{border-bottom:1p
 </header>
 <div class="wrap">
 <div class="card">
-  <div class="grid">
+  <div class="card"><b>UNIFORM DATA RULE:</b> Every parameter table will contain exactly <b>7 data rows</b>: Project Name → Date → <b>96 block values</b>. All parameter tables are normalized to the same <b>98-column</b> structure. Files download with the <b>ISO Week Number</b>.</div>
+<div class="grid">
     <div>
       <label>1. Upload Weekly NRPC Raw Excel</label>
       <input id="raw" type="file" accept=".xlsx">
@@ -45,7 +46,7 @@ table{width:100%;border-collapse:collapse;font-size:12px} th,td{border-bottom:1p
   </div>
   <div style="margin-top:12px">
     <button class="primary" id="verify">Verify Raw Data</button>
-    <button class="green" id="generate" disabled>Generate 3 Plantwise Excel Files</button>
+    <button class="green" id="generate" disabled>Generate 3 Uniform Weekwise Excel Files</button>
   </div>
   <div class="progress"><div class="bar" id="bar"></div></div>
 </div>
@@ -247,10 +248,10 @@ async function verify() {
     verified={data,dates:win.dates,checks};
     $("generate").disabled=false;
     $("bar").style.width="100%";
-    $("status").innerHTML='<span class="ok">✓ VERIFIED</span> — Complete 7-day data found for all 3 plants.';
+    $("status").innerHTML='<span class="ok">✓ VERIFIED</span> — Complete 7-day data found for all 3 plants — every dataset will be normalized to 7 rows × 98 cells (Project + Date + 96 blocks).';
     let h='<table><tr><th>Plant</th><th>Schedule</th><th>SRAS</th><th>Actual</th><th>Frequency</th><th>Reference Rate</th></tr>';
     for(const c of checks) h+=`<tr><td><b>${esc(c.plant)}</b></td><td>${c.GS_Stations}/7</td><td>${c.SRAS}/7</td><td>${c.Act_Inj_Gen_Stations}/7</td><td>${c.Frequency}/7</td><td>${c.Reference_Rate}/7</td></tr>`;
-    h+=`</table><p class="note"><b>Selected week:</b> ${win.dates[0]} to ${win.dates[6]}. No date guessing or row shifting is used.</p>`;
+    h+=`</table><p class="note"><b>Selected week:</b> ${win.dates[0]} to ${win.dates[6]} &nbsp; | &nbsp; <b>ISO Week:</b> ${isoWeekInfo(win.dates[0]).week} &nbsp; | &nbsp; <b>Uniform layout:</b> every dataset = 7 rows × 98 columns (Project + Date + D1–D96).</p>`;
     $("report").innerHTML=h;
   } catch(e) {
     verified=null; $("generate").disabled=true; $("bar").style.width="0";
@@ -298,33 +299,76 @@ function setNum(xml,ref,val) {
   const n=Number(val); return setCell(xml,ref,Number.isFinite(n)?n:0);
 }
 
+function isoWeekInfo(dmy){
+  const d=parseDMY(dmy); if(!d) throw new Error("Invalid week-start date: "+dmy);
+  // ISO week: Monday=1; Thursday determines ISO year.
+  const x=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth(),d.getUTCDate()));
+  const day=x.getUTCDay()||7; x.setUTCDate(x.getUTCDate()+4-day);
+  const isoYear=x.getUTCFullYear();
+  const yearStart=new Date(Date.UTC(isoYear,0,1));
+  const week=Math.ceil((((x-yearStart)/86400000)+1)/7);
+  return {year:isoYear,week};
+}
+
+function headerUniform(xml,row,plantLabel){
+  xml=setText(xml,"A"+row,"Project_Name");
+  xml=setText(xml,"B"+row,"Date");
+  for(let b=0;b<96;b++) xml=setText(xml,colName(2+b)+row,"D"+(b+1));
+  return xml;
+}
+
 async function makePlantWorkbook(plant, data, dates) {
   const zip=await JSZip.loadAsync(Uint8Array.from(atob(TEMPLATE_B64),c=>c.charCodeAt(0)));
   let xml=await zip.file("xl/worksheets/sheet1.xml").async("text");
+
+  // Make every parameter table structurally identical:
+  // Column A = Project_Name, Column B = Date, Columns C:CV = 96 block values.
+  // This intentionally normalizes Frequency and Reference Rate while retaining
+  // the supplied template's dimensions, row spacing, styles and merged cells.
+  for(const r of [2,13,24,35,46,57,68,79]) xml=headerUniform(xml,r);
+
+  // All 8 datasets use exactly 7 data rows.
   const sections=SECTIONS;
   for(let di=0;di<7;di++) {
     const d=dates[di];
-    // Schedule / SRAS / Actual
     for(const sec of sections) {
+      const rr=sec.startRow+di;
+      let r;
       if(sec.name==="Frequency") {
-        const r=getFreq(data,d); if(!r) throw new Error("Missing Frequency for "+d);
-        xml=setText(xml, colName(sec.outDateCol)+(sec.startRow+di), d);
-        for(let b=0;b<96;b++) setNum(xml,colName(sec.outDataStartCol+b)+(sec.startRow+di),Number(r[1+b]));
+        r=getFreq(data,d);
+        if(!r) throw new Error("Missing Frequency for "+d);
+        xml=setText(xml,"A"+rr,plant);
+        xml=setText(xml,"B"+rr,d);
+        for(let b=0;b<96;b++) {
+          const val=Number(r[1+b]);
+          if(!Number.isFinite(val)) throw new Error("Invalid numeric value in Frequency for "+d+" / block "+(b+1));
+          xml=setNum(xml,colName(2+b)+rr,val);
+        }
+      } else if(sec.name==="Reference_Rate") {
+        r=getRow(data,sec.name,plant,d);
+        if(!r) throw new Error("Missing Reference Rate for "+plant+" / "+d);
+        xml=setText(xml,"A"+rr,plant);
+        xml=setText(xml,"B"+rr,d);
+        for(let b=0;b<96;b++) {
+          const val=Number(r[2+b]);
+          if(!Number.isFinite(val)) throw new Error("Invalid numeric value in Reference Rate for "+plant+" / "+d+" / block "+(b+1));
+          xml=setNum(xml,colName(2+b)+rr,val);
+        }
       } else {
-        const r=getRow(data,sec.name,plant,d);
+        r=getRow(data,sec.name,plant,d);
         if(!r) throw new Error("Missing "+sec.name+" for "+plant+" / "+d);
-        const rr=sec.startRow+di;
         xml=setText(xml,"A"+rr,plant);
         xml=setText(xml,"B"+rr,d);
         for(let b=0;b<96;b++) {
           const val=Number(r[sec.dataStartCol+b]);
           if(!Number.isFinite(val)) throw new Error("Invalid numeric value in "+sec.name+" for "+plant+" / "+d+" / block "+(b+1));
-          xml=setNum(xml,colName(sec.outDataStartCol+b)+rr,val);
+          xml=setNum(xml,colName(2+b)+rr,val);
         }
       }
     }
   }
-  // Preserve template formulas. Only force Excel recalculation of formula cells.
+
+  // The formula datasets remain formulas from the supplied template.
   const calc='<calcPr calcId="191029" calcMode="auto" fullCalcOnLoad="1" forceFullCalc="1"/>';
   if(/<calcPr[^>]*\/>/i.test(xml)) xml=xml.replace(/<calcPr[^>]*\/>/i,calc);
   zip.file("xl/worksheets/sheet1.xml",xml);
@@ -346,13 +390,14 @@ $("generate").addEventListener("click",async()=>{
       const blob=await makePlantWorkbook(pl,verified.data,verified.dates);
       const a=document.createElement("a");
       a.href=URL.createObjectURL(blob);
-      a.download="THDCIL_"+pl.replace(/ /g,"_")+"_LU_DSM_"+verified.dates[0].replace(/-/g,"")+"_to_"+verified.dates[6].replace(/-/g,"")+".xlsx";
+      const wi=isoWeekInfo(verified.dates[0]);
+      a.download="THDCIL_Week_"+String(wi.week).padStart(2,"0")+"_"+wi.year+"_"+pl.replace(/ /g,"_")+"_LU_DSM.xlsx";
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(()=>URL.revokeObjectURL(a.href),5000);
       $("bar").style.width=((i+1)/PLANTS.length*100)+"%";
       await new Promise(r=>setTimeout(r,250));
     }
-    $("status").innerHTML='<span class="ok">✓ DONE</span> — 3 plantwise Excel files generated from the exact attached template.';
+    $("status").innerHTML='<span class="ok">✓ DONE</span> — 3 plantwise Excel files generated — uniform 7-row × 98-column dataset structure, grouped by Week Number.';
   } catch(e) {
     $("status").innerHTML='<span class="bad">✕ GENERATION FAILED:</span> '+esc(e.message);
   } finally { $("generate").disabled=false; }
