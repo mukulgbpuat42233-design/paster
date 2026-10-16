@@ -373,13 +373,25 @@ export async function makePlantWorkbook(
 
   // Make every parameter table structurally identical:
   // Column A = Project_Name, Column B = Date, Columns C:CV = 96 block values.
+  // Tables: 1: GS(2), 2: SRAS(13), 3: TotalSched(24), 4: ActInj(35), 5: AbsDev(46), 6: Freq(57), 7: RefRate(68), 8: DevCharge(79)
   for (const r of [2, 13, 24, 35, 46, 57, 68, 79]) {
     xml = headerUniform(xml, r);
   }
 
-  // All datasets use exactly 7 data rows.
+  // All 8 parameter datasets use exactly 7 data rows.
   for (let di = 0; di < 7; di++) {
     const d = dates[di];
+
+    // Ensure formula sections also have Project_Name and Date populated for each of the 7 days:
+    // Section 3: Total Scheduled Gen in LU (rows 25–31)
+    xml = setText(xml, "A" + (25 + di), plant);
+    xml = setText(xml, "B" + (25 + di), d);
+
+    // Section 5: Absolute Deviation in LU (rows 47–53)
+    xml = setText(xml, "A" + (47 + di), plant);
+    xml = setText(xml, "B" + (47 + di), d);
+
+    // Populate data-driven sections
     for (const sec of SECTIONS) {
       const rr = sec.startRow + di;
       let r: string[] | undefined;
@@ -449,6 +461,26 @@ export async function makePlantWorkbook(
   return await zip.generateAsync({
     type: "blob",
     compression: "DEFLATE",
+    compressionOptions: { level: 6 }
+  });
+}
+
+export async function makeAllPlantsZip(
+  data: Record<string, string[][]>,
+  dates: string[],
+  isoWeek: { year: number; week: number }
+): Promise<Blob> {
+  const zip = new JSZip();
+  const weekNum = String(isoWeek.week).padStart(2, '0');
+  for (const plant of PLANTS) {
+    const plantBlob = await makePlantWorkbook(plant, data, dates);
+    const plantFileName = plant.replace(/ /g, '_');
+    const fileName = `THDCIL_Week_${weekNum}_${isoWeek.year}_${plantFileName}_LU_DSM.xlsx`;
+    zip.file(fileName, plantBlob);
+  }
+  return await zip.generateAsync({
+    type: 'blob',
+    compression: 'DEFLATE',
     compressionOptions: { level: 6 }
   });
 }

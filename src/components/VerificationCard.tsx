@@ -1,4 +1,5 @@
 import React from 'react';
+import { CheckCircle2, AlertCircle, RefreshCw, Calendar, FileText, Check } from 'lucide-react';
 import { VerificationResult } from '../types';
 
 interface VerificationCardProps {
@@ -11,64 +12,141 @@ interface VerificationCardProps {
 
 export const VerificationCard: React.FC<VerificationCardProps> = ({ status, verified }) => {
   return (
-    <div className="bg-white rounded-xl shadow-[0_5px_22px_rgba(20,50,80,0.10)] p-5 mb-5 border border-slate-100">
-      <h3 className="text-base font-bold text-[#17324d] mt-0 mb-3">Verification</h3>
-      
-      <div className="p-3 rounded-lg bg-[#f4f8fb] text-xs leading-relaxed border border-[#e2edf4]">
-        {status.type === 'idle' && (
-          <span>
-            Upload the NRPC raw Excel and click <b>Verify Raw Data</b>.
-          </span>
-        )}
-        {status.type === 'verifying' && (
-          <span className="text-[#0b6fa4] font-semibold flex items-center gap-2">
-            <span className="inline-block animate-spin">⟳</span> Verifying raw NRPC Excel data and checking 7-day plant datasets...
-          </span>
-        )}
-        {status.type === 'success' && (
-          <span className="text-[#11733f] font-bold">
-            ✓ VERIFIED — {status.message}
-          </span>
-        )}
-        {status.type === 'error' && (
-          <span className="text-[#b52b2b] font-bold">
-            ✕ VERIFICATION FAILED: {status.message}
+    <div className="bg-white rounded-2xl shadow-[0_4px_24px_-4px_rgba(20,50,80,0.08)] p-6 mb-6 border border-slate-200/80">
+      <div className="flex items-center justify-between gap-3 mb-4">
+        <h3 className="text-base font-bold text-slate-800 m-0 flex items-center gap-2">
+          <span>Verification &amp; Integrity Analysis</span>
+        </h3>
+        {verified && (
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+            <Check className="w-3 h-3 text-emerald-600" /> All 3 Plants Passed
           </span>
         )}
       </div>
 
+      {/* Status banner */}
+      <div
+        className={`p-4 rounded-xl text-xs leading-relaxed border transition-all ${
+          status.type === 'idle'
+            ? 'bg-slate-50 border-slate-200 text-slate-600'
+            : status.type === 'verifying'
+            ? 'bg-sky-50 border-sky-200 text-sky-800'
+            : status.type === 'success'
+            ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+            : 'bg-rose-50 border-rose-200 text-rose-800'
+        }`}
+      >
+        {status.type === 'idle' && (
+          <div className="flex items-center gap-2.5">
+            <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+            <span>
+              Upload the NRPC raw Excel file above and click <b>Verify Raw Data</b> to scan the sheets and detect complete 7-day windows.
+            </span>
+          </div>
+        )}
+
+        {status.type === 'verifying' && (
+          <div className="flex items-center gap-2.5 text-[#0b6fa4] font-semibold">
+            <RefreshCw className="w-4 h-4 animate-spin shrink-0" />
+            <span>Scanning raw workbook sheets and validating 7-day blocks across GS_Stations, SRAS, Act_Inj, Frequency and Reference Rate...</span>
+          </div>
+        )}
+
+        {status.type === 'success' && (
+          <div className="flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-emerald-900">✓ VERIFICATION PASSED</div>
+              <div className="text-emerald-800 mt-0.5">{status.message}</div>
+            </div>
+          </div>
+        )}
+
+        {status.type === 'error' && (
+          <div className="flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-bold text-rose-900">✕ VERIFICATION FAILED</div>
+              <div className="text-rose-800 mt-0.5">{status.message}</div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Verified Data Report */}
       {verified && (
-        <div className="mt-4">
-          <div className="overflow-x-auto">
+        <div className="mt-5 pt-5 border-t border-slate-100">
+          {/* Metadata pill strip */}
+          <div className="bg-slate-50 rounded-xl p-3.5 mb-4 border border-slate-200/80 flex flex-wrap items-center justify-between gap-y-2 gap-x-4 text-xs text-slate-700">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5 text-[#0b6fa4]" />
+              <span className="font-semibold text-slate-600">Selected Week:</span>
+              <span className="font-mono font-bold text-slate-900">
+                {verified.dates[0]} <span className="text-slate-400 font-sans">to</span> {verified.dates[6]}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-600">ISO Week:</span>
+              <span className="px-2 py-0.5 rounded-md bg-[#073b66] text-white font-mono font-bold text-[11px]">
+                Week {verified.isoWeek.week} ({verified.isoWeek.year})
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-600">Normalization:</span>
+              <span className="text-slate-800 font-medium">7 rows × 98 columns (D1–D96)</span>
+            </div>
+          </div>
+
+          {/* Verification Table */}
+          <div className="overflow-x-auto rounded-xl border border-slate-200 shadow-xs">
             <table className="w-full border-collapse text-xs">
               <thead>
-                <tr className="bg-[#edf4f8] text-[#17324d]">
-                  <th className="border-b border-[#e6edf2] p-2 text-left font-semibold">Plant</th>
-                  <th className="border-b border-[#e6edf2] p-2 text-left font-semibold">Schedule</th>
-                  <th className="border-b border-[#e6edf2] p-2 text-left font-semibold">SRAS</th>
-                  <th className="border-b border-[#e6edf2] p-2 text-left font-semibold">Actual</th>
-                  <th className="border-b border-[#e6edf2] p-2 text-left font-semibold">Frequency</th>
-                  <th className="border-b border-[#e6edf2] p-2 text-left font-semibold">Reference Rate</th>
+                <tr className="bg-gradient-to-r from-slate-100 to-slate-50 text-slate-700 text-left">
+                  <th className="p-3 font-bold border-b border-slate-200">Generating Plant</th>
+                  <th className="p-3 font-semibold border-b border-slate-200 text-center">Schedule (GS)</th>
+                  <th className="p-3 font-semibold border-b border-slate-200 text-center">AGC SRAS</th>
+                  <th className="p-3 font-semibold border-b border-slate-200 text-center">Actual Injection</th>
+                  <th className="p-3 font-semibold border-b border-slate-200 text-center">Frequency</th>
+                  <th className="p-3 font-semibold border-b border-slate-200 text-center">Reference Rate</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {verified.checks.map((c, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="border-b border-[#e6edf2] p-2 font-bold text-[#17324d]">{c.plant}</td>
-                    <td className="border-b border-[#e6edf2] p-2 text-[#11733f] font-medium">{c.GS_Stations}/7</td>
-                    <td className="border-b border-[#e6edf2] p-2 text-[#11733f] font-medium">{c.SRAS}/7</td>
-                    <td className="border-b border-[#e6edf2] p-2 text-[#11733f] font-medium">{c.Act_Inj_Gen_Stations}/7</td>
-                    <td className="border-b border-[#e6edf2] p-2 text-[#11733f] font-medium">{c.Frequency}/7</td>
-                    <td className="border-b border-[#e6edf2] p-2 text-[#11733f] font-medium">{c.Reference_Rate}/7</td>
+                  <tr key={i} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="p-3 font-bold text-slate-900 flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                      <span>{c.plant}</span>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="inline-block px-2 py-0.5 rounded font-mono font-bold bg-emerald-50 text-emerald-800 text-[11px] border border-emerald-200">
+                        {c.GS_Stations}/7
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="inline-block px-2 py-0.5 rounded font-mono font-bold bg-emerald-50 text-emerald-800 text-[11px] border border-emerald-200">
+                        {c.SRAS}/7
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="inline-block px-2 py-0.5 rounded font-mono font-bold bg-emerald-50 text-emerald-800 text-[11px] border border-emerald-200">
+                        {c.Act_Inj_Gen_Stations}/7
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="inline-block px-2 py-0.5 rounded font-mono font-bold bg-emerald-50 text-emerald-800 text-[11px] border border-emerald-200">
+                        {c.Frequency}/7
+                      </span>
+                    </td>
+                    <td className="p-3 text-center">
+                      <span className="inline-block px-2 py-0.5 rounded font-mono font-bold bg-emerald-50 text-emerald-800 text-[11px] border border-emerald-200">
+                        {c.Reference_Rate}/7
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-
-          <p className="text-xs text-[#5b6d7c] leading-relaxed mt-3 pt-2 border-t border-slate-100">
-            <b>Selected week:</b> {verified.dates[0]} to {verified.dates[6]} &nbsp;|&nbsp; <b>ISO Week:</b> {verified.isoWeek.week} (Year: {verified.isoWeek.year}) &nbsp;|&nbsp; <b>Uniform layout:</b> every dataset = 7 rows × 98 columns (Project + Date + D1–D96).
-          </p>
         </div>
       )}
     </div>

@@ -35,3 +35,19 @@ export interface TemplateMappingItem {
   rows: string;
   note?: string;
 }
+
+export interface RecentRunRecord {
+  id: string;
+  timestamp: number;
+  fileName: string;
+  fileSize: number;
+  dateRange: [string, string]; // [startDate, endDate]
+  isoWeek: {
+    year: number;
+    week: number;
+  };
+  status: 'verified' | 'generated';
+  checks: PlantCheck[];
+  dates: string[];
+  dataSnapshot?: Record<string, string[][]>;
+}
